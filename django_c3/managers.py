@@ -3,11 +3,12 @@ from django.db.models.fields.related import RelatedField
 from django.conf import settings
 from django.utils.translation import get_language
 
-from linguo.utils import get_real_field_name
+from .utils import get_real_field_name
 
 
 def rewrite_lookup_key(model, lookup_key):
-    from linguo.models import MultilingualModel  # to avoid circular import
+    from .models import MultilingualModel  # to avoid circular import
+
     if issubclass(model, MultilingualModel):
         pieces = lookup_key.split('__')
         # If we are doing a lookup on a translatable field, we want to rewrite it to the actual field name
@@ -43,7 +44,7 @@ def rewrite_lookup_key(model, lookup_key):
 
 def get_fields_to_translatable_models(model):
     results = []
-    from linguo.models import MultilingualModel  # to avoid circular import
+    from .models import MultilingualModel  # to avoid circular import
 
     for field_name in model._meta.get_all_field_names():
         field_object, modelclass, direct, m2m = model._meta.get_field_by_name(field_name)

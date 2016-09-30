@@ -5,9 +5,9 @@ from django.db.models.base import ModelBase
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
-from linguo.exceptions import MultilingualFieldError
-from linguo.managers import MultilingualManager
-from linguo.utils import get_real_field_name, get_normalized_language, get_current_language
+from .exceptions import MultilingualFieldError
+from .managers import MultilingualManager
+from .utils import get_real_field_name, get_normalized_language, get_current_language
 
 
 class MultilingualModelBase(ModelBase):

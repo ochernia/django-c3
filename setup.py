@@ -1,14 +1,14 @@
-from distutils.core import setup
+from setuptools import find_packages, setup
 
-import linguo
+import django_c3
 
 
 setup(
     name='django-linguo',
-    packages=['linguo', 'linguo.tests'],
-    package_data={'linguo': ['tests/locale/*/LC_MESSAGES/*']},
-    version=linguo.__version__,
-    description=linguo.__doc__,
+    packages=['django_c3', 'django_c3.tests'],
+    package_data=find_packages(),
+    version=django_c3.__version__,
+    description=django_c3.__doc__,
     long_description=open('README.rst').read(),
     classifiers=[
         'Framework :: Django',
@@ -18,6 +18,6 @@ setup(
         'Topic :: Software Development'
     ],
     author='Zach Mathew',
-    url='http://github.com/zmathew/django-linguo',
+    url='http://github.com/czpython/django-c3',
     license='BSD',
 )

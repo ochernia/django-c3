@@ -7,9 +7,9 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import translation
 
-from linguo.tests.forms import BarForm, BarFormWithFieldsSpecified, \
+from .forms import BarForm, BarFormWithFieldsSpecified, \
     BarFormWithFieldsExcluded, MultilingualBarFormAllFields
-from linguo.tests.models import Foo, FooRel, Moo, Bar, BarRel, Moe, Gem, \
+from .models import Foo, FooRel, Moo, Bar, BarRel, Moe, Gem, \
     FooCategory, Hop, Ord, Doc, Lan
 
 

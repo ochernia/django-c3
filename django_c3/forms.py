@@ -1,10 +1,11 @@
 from django import forms
 from django.conf import settings
 
-from linguo.utils import get_normalized_language
+from .utils import get_normalized_language
 
 
 class MultilingualModelForm(forms.ModelForm):
+
     def __init__(self, data=None, files=None, instance=None, **kwargs):
         # We force the language to the primary, temporarily disabling the
         # routing based on current active language.

@@ -1,3 +1,2 @@
 include README.rst
 include LICENSE
-include linguo/tests/locale/*/LC_MESSAGES/*

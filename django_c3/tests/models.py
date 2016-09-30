@@ -1,8 +1,8 @@
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
-from linguo.managers import MultilingualManager
-from linguo.models import MultilingualModel
+from ..managers import MultilingualManager
+from ..models import MultilingualModel
 
 
 class FooCategory(MultilingualModel):

@@ -1,7 +1,7 @@
 from django import forms
 
-from linguo.forms import MultilingualModelForm
-from linguo.tests.models import Bar
+from ..forms import MultilingualModelForm
+from .models import Bar
 
 
 class BarForm(forms.ModelForm):

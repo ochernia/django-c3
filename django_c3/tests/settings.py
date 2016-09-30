@@ -39,8 +39,8 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    'linguo',
-    'linguo.tests',
+    'django_c3',
+    'django_c3.tests',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -52,7 +52,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
 
-ROOT_URLCONF = 'linguo.tests.urls'
+ROOT_URLCONF = 'django_c3.tests.urls'
 
 TEMPLATES = [
     {

@@ -1,7 +1,7 @@
 from django.contrib import admin
 
-from linguo.tests.forms import MultilingualBarFormAllFields
-from linguo.tests.models import Bar
+from .forms import MultilingualBarFormAllFields
+from .models import Bar
 
 
 class BarAdmin(admin.ModelAdmin):
