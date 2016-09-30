@@ -3,27 +3,49 @@ import copy
 from django.db import models
 from django.db.models.base import ModelBase
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
 
+from .conf import C3_LANGUAGES
 from .exceptions import MultilingualFieldError
 from .managers import MultilingualManager
-from .utils import get_real_field_name, get_normalized_language, get_current_language
+from .utils import get_i18n_field_name, get_normalized_language, get_current_language
 
 
 class MultilingualModelBase(ModelBase):
 
     def __new__(cls, name, bases, attrs):
-        local_trans_fields, inherited_trans_fields = \
-            cls.get_trans_fields(name, bases, attrs)
+        active_field_name = cls.get_active_field_name(name, bases, attrs)
+        local_trans_fields, inherited_trans_fields = cls.get_trans_fields(name, bases, attrs)
 
-        if ('Meta' in attrs) and hasattr(attrs['Meta'], 'translate'):
-            delattr(attrs['Meta'], 'translate')
+        meta = attrs.get('Meta')
 
-        attrs = cls.rewrite_trans_fields(local_trans_fields, attrs)
-        attrs = cls.rewrite_unique_together(local_trans_fields, attrs)
+        if meta:
+            # Cleanup custom Meta attributes
+            if hasattr(meta, 'translate'):
+                delattr(meta, 'translate')
+
+            if hasattr(meta, 'active_field_name'):
+                delattr(meta, 'active_field_name')
+
+        translatable_fields = inherited_trans_fields + local_trans_fields
+
+        if active_field_name not in translatable_fields:
+            local_trans_fields.append(active_field_name)
+            translatable_fields.append(active_field_name)
+
+        # TODO: Handle unique_together with translatable fields?
+
+        # Create a field for each configured language
+        # for each translatable field.
+        for field_name in local_trans_fields:
+            field = attrs.pop(field_name)
+
+            for language in C3_LANGUAGES:
+                i18n_field = cls.get_i18n_field(field, field_name, language[0])
+                attrs[i18n_field.name] = i18n_field
 
         new_obj = super(MultilingualModelBase, cls).__new__(cls, name, bases, attrs)
-        new_obj._meta.translatable_fields = inherited_trans_fields + local_trans_fields
+        new_obj._meta.active_field_name = active_field_name
+        new_obj._meta.translatable_fields = translatable_fields
 
         # Add a property that masks the translatable fields
         for field_name in local_trans_fields:
@@ -33,26 +55,33 @@ class MultilingualModelBase(ModelBase):
             if type(new_obj.__dict__.get(field_name)) == property:
                 continue
 
-            # Some fields add a descriptor (ie. FileField), we want to keep that on the model
-            if field_name in new_obj.__dict__:
-                primary_lang_field_name = '%s_%s' % (
-                    field_name, get_normalized_language(settings.LANGUAGES[0][0])
-                )
-                setattr(new_obj, primary_lang_field_name, new_obj.__dict__[field_name])
+            # TODO: Handle fields that set their own descriptor (i.e. FileField)
 
             getter = cls.generate_field_getter(field_name)
             setter = cls.generate_field_setter(field_name)
             setattr(new_obj, field_name, property(getter, setter))
-
         return new_obj
+
+    @classmethod
+    def get_active_field_name(cls, name, bases, attrs):
+        meta = attrs.get('Meta')
+
+        if meta and hasattr(meta, 'active_field_name'):
+            return meta.active_field_name
+
+        # Check in parent classes
+        for base in bases:
+            if hasattr(base, '_meta') and hasattr(base._meta, 'active_field_name'):
+                return base._meta.active_field_name
 
     @classmethod
     def get_trans_fields(cls, name, bases, attrs):
         local_trans_fields = []
         inherited_trans_fields = []
+        meta = attrs.get('Meta')
 
-        if ('Meta' in attrs) and hasattr(attrs['Meta'], 'translate'):
-            local_trans_fields = list(attrs['Meta'].translate)
+        if meta and hasattr(meta, 'translate'):
+            local_trans_fields = list(meta.translate)
 
         # Check for translatable fields in parent classes
         for base in bases:
@@ -70,34 +99,18 @@ class MultilingualModelBase(ModelBase):
         return (local_trans_fields, inherited_trans_fields)
 
     @classmethod
-    def rewrite_trans_fields(cls, local_trans_fields, attrs):
-        """Create copies of the local translatable fields for each language"""
-        for field in local_trans_fields:
-
-            for lang in settings.LANGUAGES[1:]:
-                lang_code = lang[0]
-
-                lang_field = copy.copy(attrs[field])
-                # The new field cannot have the same creation_counter (else the ordering will be arbitrary)
-                # We increment by a decimal point because we don't want to have
-                # to adjust the creation_counter of ALL other subsequent fields
-                lang_field.creation_counter += 0.0001  # Limitation this trick: only supports upto 10,000 languages
-                lang_fieldname = get_real_field_name(field, lang_code)
-                lang_field.name = lang_fieldname
-
-                if lang_field.verbose_name is not None:
-                    # This is to extract the original value that was passed into ugettext_lazy
-                    # We do this so that we avoid evaluating the lazy object.
-                    raw_verbose_name = lang_field.verbose_name._proxy____args[0]
-                else:
-                    raw_verbose_name = field.replace('-', ' ')
-                lang_field.verbose_name = _(u'%(verbose_name)s (%(language)s)' %
-                    {'verbose_name': raw_verbose_name, 'language': lang[1]}
-                )
-
-                attrs[lang_fieldname] = lang_field
-
-        return attrs
+    def get_i18n_field(cls, field, field_name, language):
+        """
+        Returns a copy of field renamed to match the given language
+        """
+        lang_field = copy.copy(field)
+        # The new field cannot have the same creation_counter (else the ordering will be arbitrary)
+        # We increment by a decimal point because we don't want to have
+        # to adjust the creation_counter of ALL other subsequent fields
+        # Limitation this trick: only supports up to 10,000 languages
+        lang_field.creation_counter += 0.0001
+        lang_field.name = get_i18n_field_name(field_name, language)
+        return lang_field
 
     @classmethod
     def generate_field_getter(cls, field):
@@ -117,63 +130,56 @@ class MultilingualModelBase(ModelBase):
             setattr(self_reference, attrname, value)
         return setter
 
-    @classmethod
-    def rewrite_unique_together(cls, local_trans_fields, attrs):
-        if ('Meta' not in attrs) or not hasattr(attrs['Meta'], 'unique_together'):
-            return attrs
 
-        # unique_together can be either a tuple of tuples, or a single
-        # tuple of two strings. Normalize it to a tuple of tuples.
-        ut = attrs['Meta'].unique_together
-        if ut and not isinstance(ut[0], (tuple, list)):
-            ut = (ut,)
+class Translation(object):
+    fields = None
+    master = None
 
-        # Determine which constraints need to be rewritten
-        new_ut = []
-        constraints_to_rewrite = []
-        for constraint in ut:
-            needs_rewriting = False
-            for field in constraint:
-                if field in local_trans_fields:
-                    needs_rewriting = True
-                    break
-            if needs_rewriting:
-                constraints_to_rewrite.append(constraint)
-            else:
-                new_ut.append(constraint)
+    def __init__(self, language):
+        self.language_code = language
 
-        # Now perform the re-writing
-        for constraint in constraints_to_rewrite:
-            for lang in settings.LANGUAGES:
-                lang_code = lang[0]
-                new_constraint = []
-                for field in constraint:
-                    if field in local_trans_fields:
-                        field = get_real_field_name(field, lang_code)
-                    new_constraint.append(field)
+    def __getattr__(self, field):
+        if field in self.fields:
+            with force_language(self.language_code):
+                return getattr(self.master, field)
+        opts = self.master._meta
+        raise FieldDoesNotExist('%s has no field named %r' % (opts.object_name, field))
 
-                new_ut.append(tuple(new_constraint))
+    def __bool__(self):
+        return self.is_active()
 
-        attrs['Meta'].unique_together = tuple(new_ut)
-        return attrs
+    __nonzero__ = __bool__
+
+    def is_active(self):
+        return self.master.translation_exists(self.language_code)
+
+    def save(self, **data):
+        self.master.save_translation(self.language_code, data)
 
 
 class MultilingualModel(models.Model):
     __metaclass__ = MultilingualModelBase
 
+    translation_is_active = models.BooleanField(
+        default=False,
+        editable=False
+    )
+
     objects = MultilingualManager()
 
     class Meta:
         abstract = True
+        active_field_name = 'translation_is_active'
 
     def __init__(self, *args, **kwargs):
         self._force_language = None
 
         # Rewrite any keyword arguments for translatable fields
         language = get_current_language()
+
         for field in self._meta.translatable_fields:
             if field in kwargs.keys():
-                attrname = get_real_field_name(field, language)
+                attrname = get_i18n_field_name(field, language)
                 if attrname != field:
                     kwargs[attrname] = kwargs[field]
                     del kwargs[field]
@@ -202,3 +208,100 @@ class MultilingualModel(models.Model):
             setattr(self, key, val)  # Set values on the object
         # Now switch back
         self._force_language = old_forced_language
+
+    def _get_languages(self):
+        return [lang[0] for lang in settings.LANGUAGES]
+
+    def _get_fields(self):
+        return self._meta.translatable_fields
+
+    def _get_is_active_field(self, language):
+        field_name = self._get_field_name_for_language(
+            name='translation_is_active',
+            language=self.language
+        )
+        return field_name
+
+    def _get_field_name_for_language(self, name, language):
+        return u'{}_{}'.format(name, language)
+
+    def _get_translation(self, language):
+        attrs = {'fields': self._get_fields(), 'master': self}
+        class_name = '%sTranslation' % self.__class__.__name__
+        return type(class_name, (Translation,), attrs)(language=language)
+
+    def get_active_languages(self):
+        all_languages = self._get_languages()
+
+        languages = [language for language in all_languages
+                     if self.translation_exists(language)]
+        return languages
+
+    def get_translation(self, language, include_inactive=True):
+        is_active = self.translation_exists(language)
+
+        if not is_active and not include_inactive:
+            return None
+        return self._get_translation(language)
+
+    def get_translations(self, include_inactive=False):
+        languages = self._get_languages()
+
+        translations = []
+
+        for language in languages:
+            translation = self.get_translation(
+                language,
+                include_inactive=include_inactive
+            )
+
+            if translation or include_inactive:
+                translations.append(translation)
+        return translations
+
+    def get_field_with_fallbacks(self, field):
+        current_language = get_language()
+
+        value = getattr(self, field)
+
+        if value:
+            return value
+
+        languages = self._get_languages()
+
+        for language in languages:
+            if language != current_language:
+                with force_language(language):
+                    value = getattr(self, field)
+
+                    if value:
+                        break
+        return value
+
+    def save_translation(self, language, data):
+        # Set the is active field to True
+        # we do it here to prevent it from being overridden
+        data[self._active_field_name] = True
+        self.update_translation(language, data)
+
+    def deactivate_translation(self, language):
+        data = {self._active_field_name: False}
+        self.update_translation(language, data)
+
+    def translation_exists(self, language):
+        with force_language(language):
+            return getattr(self, self._active_field_name)
+
+    def update_translation(self, language, data):
+        with force_language(language):
+            # write to the db.
+            # we bypass save() because saving a translation
+            # should be very transparent.
+            # So we avoid the save() method and signals.
+            (self.__class__
+             ._default_manager
+             .filter(pk=self.pk)
+             .update(**data))
+
+        # update the current instance
+        self.translate(language, **data)

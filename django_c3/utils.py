@@ -1,17 +1,9 @@
-from django.conf import settings
 from django.utils import translation
 
 
-def get_real_field_name(field_name, language):
-    """
-    Returns the field that stores the value of the given translation
-    in the specified language.
-    """
+def get_i18n_field_name(field_name, language):
     lang_code = get_normalized_language(language)
-    if lang_code == get_normalized_language(settings.LANGUAGES[0][0]):
-        return field_name
-    else:
-        return '%s_%s' % (field_name, language)
+    return '%s_%s' % (field_name, lang_code)
 
 
 def get_normalized_language(language_code):

@@ -3,7 +3,7 @@ from django.db.models.fields.related import RelatedField
 from django.conf import settings
 from django.utils.translation import get_language
 
-from .utils import get_real_field_name
+from .utils import get_i18n_field_name
 
 
 def rewrite_lookup_key(model, lookup_key):
@@ -14,7 +14,7 @@ def rewrite_lookup_key(model, lookup_key):
         # If we are doing a lookup on a translatable field, we want to rewrite it to the actual field name
         # For example, we want to rewrite "name__startswith" to "name_fr__startswith"
         if pieces[0] in model._meta.translatable_fields:
-            lookup_key = get_real_field_name(pieces[0], get_language().split('-')[0])
+            lookup_key = get_i18n_field_name(pieces[0], get_language())
 
             remaining_lookup = '__'.join(pieces[1:])
             if remaining_lookup:
@@ -49,8 +49,8 @@ def get_fields_to_translatable_models(model):
     for field_name in model._meta.get_all_field_names():
         field_object, modelclass, direct, m2m = model._meta.get_field_by_name(field_name)
         if direct and isinstance(field_object, RelatedField):
-            if issubclass(field_object.related.parent_model, MultilingualModel):
-                results.append((field_name, field_object.related.parent_model))
+            if issubclass(field_object.related.model, MultilingualModel):
+                results.append((field_name, field_object.related.model))
     return results
 
 
@@ -95,6 +95,3 @@ class MultilingualManager(models.Manager):
 
     def get_queryset(self):
         return MultilingualQuerySet(self.model)
-
-    def get_query_set(self):  # For Django < 1.6 compatibility
-        return self.get_queryset()

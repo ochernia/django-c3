@@ -5,7 +5,6 @@ from .utils import get_normalized_language
 
 
 class MultilingualModelForm(forms.ModelForm):
-
     def __init__(self, data=None, files=None, instance=None, **kwargs):
         # We force the language to the primary, temporarily disabling the
         # routing based on current active language.
