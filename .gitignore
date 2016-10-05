@@ -1,0 +1,3 @@
+*.pyc
+.idea
+django_c3.egg-info
