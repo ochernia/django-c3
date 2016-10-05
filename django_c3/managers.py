@@ -9,12 +9,14 @@ from .utils import get_i18n_field_name
 def rewrite_lookup_key(model, lookup_key):
     from .models import MultilingualModel  # to avoid circular import
 
+    current_language = get_language()
+
     if issubclass(model, MultilingualModel):
         pieces = lookup_key.split('__')
         # If we are doing a lookup on a translatable field, we want to rewrite it to the actual field name
         # For example, we want to rewrite "name__startswith" to "name_fr__startswith"
         if pieces[0] in model._meta.translatable_fields:
-            lookup_key = get_i18n_field_name(pieces[0], get_language())
+            lookup_key = get_i18n_field_name(pieces[0], current_language)
 
             remaining_lookup = '__'.join(pieces[1:])
             if remaining_lookup:
@@ -95,3 +97,6 @@ class MultilingualManager(models.Manager):
 
     def get_queryset(self):
         return MultilingualQuerySet(self.model)
+
+    def language(self):
+        return self.filter(translation_is_active=True)

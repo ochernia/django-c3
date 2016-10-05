@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models.base import ModelBase
 from django.conf import settings
 
-from .conf import C3_LANGUAGES
+from .conf import C3_LANGUAGES, C3_PRIMARY_LANGUAGE
 from .exceptions import MultilingualFieldError
 from .managers import MultilingualManager
 from .utils import get_i18n_field_name, get_normalized_language, get_current_language
@@ -34,13 +34,16 @@ class MultilingualModelBase(ModelBase):
 
         # TODO: Handle unique_together with translatable fields?
 
+        languages = [language[0] for language in C3_LANGUAGES
+                     if language[0] != C3_PRIMARY_LANGUAGE]
+
         # Create a field for each configured language
         # for each translatable field.
         for field_name in local_trans_fields:
-            field = attrs.pop(field_name)
+            field = attrs[field_name]
 
-            for language in C3_LANGUAGES:
-                i18n_field = cls.get_i18n_field(field, field_name, language[0])
+            for language in languages:
+                i18n_field = cls.get_i18n_field(field, field_name, language)
                 attrs[i18n_field.name] = i18n_field
 
         new_obj = super(MultilingualModelBase, cls).__new__(cls, name, bases, attrs)
@@ -55,7 +58,10 @@ class MultilingualModelBase(ModelBase):
             if type(new_obj.__dict__.get(field_name)) == property:
                 continue
 
-            # TODO: Handle fields that set their own descriptor (i.e. FileField)
+            if field_name in new_obj.__dict__:
+                # Field has a descriptor so keep the descriptor under the primary language field
+                primary_lang_field_name = get_i18n_field_name(field_name, C3_PRIMARY_LANGUAGE)
+                setattr(new_obj, primary_lang_field_name, new_obj.__dict__[field_name])
 
             getter = cls.generate_field_getter(field_name)
             setter = cls.generate_field_setter(field_name)
@@ -110,24 +116,21 @@ class MultilingualModelBase(ModelBase):
         # Limitation this trick: only supports up to 10,000 languages
         lang_field.creation_counter += 0.0001
         lang_field.name = get_i18n_field_name(field_name, language)
+        lang_field.editable = False
         return lang_field
 
     @classmethod
     def generate_field_getter(cls, field):
         # Property that masks the getter of a translatable field
         def getter(self_reference):
-            lang = self_reference._force_language or get_current_language()
-            attrname = '%s_%s' % (field, lang)
-            return getattr(self_reference, attrname)
+            return self_reference.get_i18n_field_value(field)
         return getter
 
     @classmethod
     def generate_field_setter(cls, field):
         # Property that masks a setter of the translatable field
         def setter(self_reference, value):
-            lang = self_reference._force_language or get_current_language()
-            attrname = '%s_%s' % (field, lang)
-            setattr(self_reference, attrname, value)
+            return self_reference.set_i18n_field_value(field, value)
         return setter
 
 
@@ -140,8 +143,7 @@ class Translation(object):
 
     def __getattr__(self, field):
         if field in self.fields:
-            with force_language(self.language_code):
-                return getattr(self.master, field)
+            return self.master.get_i18n_field_value(field, language=self.language_code)
         opts = self.master._meta
         raise FieldDoesNotExist('%s has no field named %r' % (opts.object_name, field))
 
@@ -191,6 +193,8 @@ class MultilingualModel(models.Model):
         self._force_language = None
 
     def save(self, *args, **kwargs):
+        language = self.get_active_language()
+        self.set_i18n_field_value(self._meta.active_field_name, True, language)
         # We have to force the primary language before saving or else
         # our "proxy" property will prevent the primary language values from being returned.
         old_forced_language = self._force_language
@@ -209,32 +213,17 @@ class MultilingualModel(models.Model):
         # Now switch back
         self._force_language = old_forced_language
 
-    def _get_languages(self):
-        return [lang[0] for lang in settings.LANGUAGES]
-
-    def _get_fields(self):
-        return self._meta.translatable_fields
-
-    def _get_is_active_field(self, language):
-        field_name = self._get_field_name_for_language(
-            name='translation_is_active',
-            language=self.language
-        )
-        return field_name
-
-    def _get_field_name_for_language(self, name, language):
-        return u'{}_{}'.format(name, language)
-
     def _get_translation(self, language):
-        attrs = {'fields': self._get_fields(), 'master': self}
+        attrs = {'fields': self._meta.translatable_fields, 'master': self}
         class_name = '%sTranslation' % self.__class__.__name__
         return type(class_name, (Translation,), attrs)(language=language)
 
-    def get_active_languages(self):
-        all_languages = self._get_languages()
+    def get_active_language(self):
+        return self._force_language or get_current_language()
 
-        languages = [language for language in all_languages
-                     if self.translation_exists(language)]
+    def get_bound_languages(self):
+        languages = [language[0] for language in C3_LANGUAGES
+                     if self.translation_exists(language[0])]
         return languages
 
     def get_translation(self, language, include_inactive=True):
@@ -245,13 +234,11 @@ class MultilingualModel(models.Model):
         return self._get_translation(language)
 
     def get_translations(self, include_inactive=False):
-        languages = self._get_languages()
-
         translations = []
 
-        for language in languages:
+        for language in C3_LANGUAGES:
             translation = self.get_translation(
-                language,
+                language[0],
                 include_inactive=include_inactive
             )
 
@@ -259,38 +246,43 @@ class MultilingualModel(models.Model):
                 translations.append(translation)
         return translations
 
-    def get_field_with_fallbacks(self, field):
-        current_language = get_language()
+    def get_i18n_field_value(self, field_name, language=None):
+        current_language = language or self.get_active_language()
+        i18n_field_name = get_i18n_field_name(field_name, current_language)
+        return getattr(self, i18n_field_name)
 
-        value = getattr(self, field)
+    def set_i18n_field_value(self, field_name, value, language=None):
+        current_language = language or self.get_active_language()
+        i18n_field_name = get_i18n_field_name(field_name, current_language)
+        setattr(self, i18n_field_name, value)
+
+    def get_i18n_field_value_with_fallbacks(self, field, language=None):
+        current_language = language or self.get_active_language()
+        value = self.get_i18n_field_value(field, current_language)
 
         if value:
             return value
 
-        languages = self._get_languages()
+        for language in C3_LANGUAGES:
+            if language[0] != current_language:
+                value = self.get_i18n_field_value(field, language[0])
 
-        for language in languages:
-            if language != current_language:
-                with force_language(language):
-                    value = getattr(self, field)
-
-                    if value:
-                        break
+                if value:
+                    break
         return value
 
     def save_translation(self, language, data):
         # Set the is active field to True
         # we do it here to prevent it from being overridden
-        data[self._active_field_name] = True
+        data[self._meta.active_field_name] = True
         self.update_translation(language, data)
 
     def deactivate_translation(self, language):
-        data = {self._active_field_name: False}
+        data = {self._meta.active_field_name: False}
         self.update_translation(language, data)
 
     def translation_exists(self, language):
-        with force_language(language):
-            return getattr(self, self._active_field_name)
+        return self.get_i18n_field_value(self._meta.active_field_name, language)
 
     def update_translation(self, language, data):
         with force_language(language):

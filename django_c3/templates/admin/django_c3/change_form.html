@@ -1,0 +1,71 @@
+{% extends "admin/change_form.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<style type="text/css">
+.linguo-language-tabs {
+    border-bottom: 5px solid #5bbdee;
+    margin-bottom: -3px;
+    position: relative;
+}
+.linguo-language-tabs span{
+    display: inline-block;
+    border: none;
+    border-bottom: none;
+    position: relative;
+    left: 0;
+    top: 0;
+    color: #666;
+    font-weight: normal;
+    vertical-align: top;
+    background: white;
+    padding: 8px 10px;
+    margin: 0;
+}
+.linguo-language-tabs span.current{
+    border-bottom: 1px solid #fff;
+    background: #5bbdee;
+    color: white;
+    padding-left: 20px;
+    padding-right: 20px;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+}
+.linguo-language-tabs span.active{
+    background: white;
+}
+.linguo-language-tabs span.inactive{
+    background: #f1f1f1;
+    opacity: 1;
+    font-weight: normal;
+}
+.linguo-language-tabs a.deletelink{
+    position: relative;
+    display: inline;
+    padding: 0 0 0 12px;
+    margin: 0;
+    border-top-right-radius: 0;
+    bottom: 0;
+    right: -3px;
+}
+
+</style>
+{% endblock %}
+
+{% block object-tools %}
+{{ block.super }}
+<div class="linguo-language-tabs">
+	{% for tab in language_tabs %}
+	   {% if tab.status == 'current' %}
+	       <span class="current">
+               {{ tab.name }}
+                {% if tab.deactivate_url %}<a class="deletelink" href="{{ tab.deactivate_url }}" title="Delete Translation">&nbsp;</a>{% endif %}
+           </span>
+       {% else %}
+	       <span class="{{ tab.status }}">
+               <a href="{{ tab.url }}">{{ tab.name }}</a>
+               {% if tab.deactivate_url %}<a class="deletelink" href="{{ tab.deactivate_url }}" title="Delete Translation">&nbsp;</a>{% endif %}
+           </span>
+       {% endif %}
+    {% endfor %}
+</div>
+{% endblock %}

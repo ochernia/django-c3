@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.utils import translation
 
 
@@ -20,3 +21,18 @@ def get_current_language():
     language code.
     """
     return get_normalized_language(translation.get_language())
+
+
+def get_language_from_request(request):
+    language_code = request.GET.get('language', None)
+
+    # validate language
+    for language in settings.LANGUAGES:
+        if language[0] == language_code:
+            break
+    else:
+        language_code = None
+
+    if not language_code:
+        language_code = translation.get_language_from_request(request, check_path=True)
+    return language_code
