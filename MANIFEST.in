@@ -1,2 +1,4 @@
+include LICENSE.txt
 include README.rst
-include LICENSE
+recursive-include django_c3/templates *
+recursive-exclude * *.pyc
