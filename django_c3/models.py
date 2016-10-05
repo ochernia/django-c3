@@ -1,8 +1,10 @@
 import copy
 
+from django.conf import settings
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from django.db.models.base import ModelBase
-from django.conf import settings
+from django.utils.translation import override as force_language
 
 from .conf import C3_LANGUAGES, C3_PRIMARY_LANGUAGE
 from .exceptions import MultilingualFieldError

@@ -1,3 +1,8 @@
 *.pyc
-.idea
-django_c3.egg-info
+*.egg-info
+.DS_Store
+.idea/
+.tox/
+.eggs/
+dist/
+build/
