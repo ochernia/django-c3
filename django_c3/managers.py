@@ -1,8 +1,8 @@
 from django.db import models
 from django.db.models.fields.related import RelatedField
-from django.conf import settings
 from django.utils.translation import get_language
 
+from .conf import C3_PRIMARY_LANGUAGE
 from .utils import get_i18n_field_name
 
 
@@ -15,13 +15,13 @@ def rewrite_lookup_key(model, lookup_key):
         pieces = lookup_key.split('__')
         # If we are doing a lookup on a translatable field, we want to rewrite it to the actual field name
         # For example, we want to rewrite "name__startswith" to "name_fr__startswith"
-        if pieces[0] in model._meta.translatable_fields:
+        if pieces[0] in model._meta.translatable_fields and current_language != C3_PRIMARY_LANGUAGE:
             lookup_key = get_i18n_field_name(pieces[0], current_language)
 
             remaining_lookup = '__'.join(pieces[1:])
             if remaining_lookup:
                 lookup_key = '%s__%s' % (lookup_key, remaining_lookup)
-        elif pieces[0] in map(lambda field: '%s_%s' % (field, settings.LANGUAGES[0][0]), model._meta.translatable_fields):
+        elif pieces[0] in map(lambda field: '%s_%s' % (field, C3_PRIMARY_LANGUAGE), model._meta.translatable_fields):
             # If the lookup field explicitly refers to the primary langauge (eg. "name_en"),
             # we want to rewrite that to point to the actual field name.
             lookup_key = pieces[0][:-3]  # Strip out the language suffix
