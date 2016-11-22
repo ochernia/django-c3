@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from collections import namedtuple
 
-from django.contrib.admin import ModelAdmin
+from django.contrib import admin
 from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
 from django.http import Http404, QueryDict
@@ -25,7 +25,7 @@ def get_language_name(language_code):
     return get_language_info(language_code)['name']
 
 
-class MultilingualAdmin(ModelAdmin):
+class MultilingualAdmin(admin.ModelAdmin):
     query_language_key = 'language'
 
     form = MultilingualModelForm
@@ -200,3 +200,25 @@ class MultilingualAdmin(ModelAdmin):
         context['title'] = u'%s (%s)' % (context['title'], language_name)
         context['language_tabs'] = self.get_language_tabs(request, obj=obj)
         return super(MultilingualAdmin, self).render_change_form(request, context, add, change, form_url, obj)
+
+
+class MultilingualStackedInline(admin.StackedInline):
+    form = MultilingualModelForm
+
+    def get_formset(self, request, obj=None, **kwargs):
+        class I18nForm(self.form):
+            language_code = get_language_from_request(request)
+
+        kwargs['form'] = I18nForm
+        return super(MultilingualStackedInline, self).get_formset(request, obj=obj, **kwargs)
+
+
+class MultilingualTabularInline(admin.TabularInline):
+    form = MultilingualModelForm
+
+    def get_formset(self, request, obj=None, **kwargs):
+        class I18nForm(self.form):
+            language_code = get_language_from_request(request)
+
+        kwargs['form'] = I18nForm
+        return super(MultilingualTabularInline, self).get_formset(request, obj=obj, **kwargs)
