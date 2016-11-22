@@ -16,6 +16,7 @@ class MultilingualModelForm(forms.ModelForm):
         super(MultilingualModelForm, self).__init__(
             data=data, files=files, instance=instance, **kwargs
         )
+        self.instance._force_language = self.language_code
 
     def save(self, *args, **kwargs):
         self.instance._force_language = self.language_code
