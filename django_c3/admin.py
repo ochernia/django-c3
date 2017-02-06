@@ -180,6 +180,12 @@ class MultilingualAdmin(admin.ModelAdmin):
     def deactivate_translation(self, request, obj, language_code):
         obj.deactivate_translation(language_code)
 
+    def get_preserved_filters(self, request):
+        filters = super(MultilingualAdmin, self).get_preserved_filters(request)
+        queries = QueryDict(filters, mutable=True)
+        queries['language'] = get_language_from_request(request)
+        return queries.urlencode()
+
     def response_change(self, request, obj):
         response = super(MultilingualAdmin, self).response_change(request, obj)
 
