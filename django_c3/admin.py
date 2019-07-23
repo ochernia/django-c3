@@ -7,7 +7,7 @@ from django.core.urlresolvers import reverse
 from django.http import Http404, QueryDict
 from django.shortcuts import redirect, render_to_response
 from django.template import RequestContext
-from django.utils.encoding import force_unicode
+from django.utils.encoding import force_text
 from django.utils.translation import get_language_info, ugettext
 
 from .conf import C3_LANGUAGES
@@ -111,7 +111,7 @@ class MultilingualAdmin(admin.ModelAdmin):
         "The 'delete translation' admin view for this model."
         opts = self.model._meta
         app_label = opts.app_label
-        verbose_name = force_unicode(opts.verbose_name)
+        verbose_name = force_text(opts.verbose_name)
 
         obj = self.get_object(request, object_id)
 
@@ -133,7 +133,7 @@ class MultilingualAdmin(admin.ModelAdmin):
 
         if request.method == 'POST':
             # The user has already confirmed the deletion.
-            obj_name = force_unicode(obj)
+            obj_name = force_text(obj)
             message = 'deactivated %s translation of %s' % (language_name, obj_name)
 
             self.log_change(
