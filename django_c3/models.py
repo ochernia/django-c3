@@ -161,8 +161,7 @@ class Translation(object):
         self.master.save_translation(self.language_code, data)
 
 
-class MultilingualModel(models.Model):
-    __metaclass__ = MultilingualModelBase
+class MultilingualModel(models.Model, metaclass=MultilingualModelBase):
 
     translation_is_active = models.BooleanField(
         default=False,
