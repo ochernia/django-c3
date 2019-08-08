@@ -3,7 +3,7 @@ from collections import namedtuple
 
 from django.contrib import admin
 from django.core.exceptions import PermissionDenied
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.http import Http404, QueryDict
 from django.shortcuts import redirect, render_to_response
 from django.template import RequestContext
